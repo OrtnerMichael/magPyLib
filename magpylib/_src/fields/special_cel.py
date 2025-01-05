@@ -98,7 +98,7 @@ def celv(kc, p, c, s):
     mask = np.ones(n, dtype=bool)
     while np.any(mask):
         k[mask] = 2 * np.sqrt(kk[mask])
-        kk[mask] = np.copy(k[mask] * em[mask])
+        kk[mask] = k[mask] * em[mask]
         f[mask] = cc[mask]
         cc[mask] = cc[mask] + ss[mask] / pp[mask]
         g[mask] = kk[mask] / pp[mask]
