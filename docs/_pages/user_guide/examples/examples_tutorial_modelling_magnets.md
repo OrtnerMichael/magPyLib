@@ -1,6 +1,6 @@
-(examples-tutorial-modelling-magnets)=
+(examples-tutorial-modeling-magnets)=
 
-# Modelling a real magnet
+# Modeling a real magnet
 
 Whenever you wish to compare Magpylib simulations with experimental data obtained using a real permanent magnet, you might wonder how to properly set up a Magpylib magnet object to reflect the physical permanent magnet in question. The goal of this tutorial is to explain how to extract this information from respective datasheets, to provide better understanding of permanent magnets, and show how to align Magpylib simulations with experimental measurements.
 
