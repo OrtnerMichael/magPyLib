@@ -1,4 +1,4 @@
-""" Definition of custom exceptions"""
+"""Definition of custom exceptions"""
 
 
 class MagpylibBadUserInput(Exception):

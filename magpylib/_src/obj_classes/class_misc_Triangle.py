@@ -1,7 +1,6 @@
 # pylint: disable=too-many-positional-arguments
 
-"""Magnet Triangle class
-"""
+"""Magnet Triangle class"""
 
 import numpy as np
 

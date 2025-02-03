@@ -1,4 +1,4 @@
-""" input checks code"""
+"""input checks code"""
 
 # pylint: disable=import-outside-toplevel
 # pylint: disable=cyclic-import
