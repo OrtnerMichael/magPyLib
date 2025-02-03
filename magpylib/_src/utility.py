@@ -1,4 +1,4 @@
-""" some utility functions"""
+"""some utility functions"""
 
 # pylint: disable=import-outside-toplevel
 # pylint: disable=cyclic-import

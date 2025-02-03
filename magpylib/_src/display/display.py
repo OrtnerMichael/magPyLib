@@ -1,4 +1,4 @@
-""" Display function codes"""
+"""Display function codes"""
 
 import warnings
 from contextlib import contextmanager
