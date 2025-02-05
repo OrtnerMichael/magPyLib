@@ -10,6 +10,8 @@ from itertools import cycle
 from typing import Tuple
 
 import numpy as np
+from matplotlib.colors import rgb2hex
+from plotly.colors import sample_colorscale
 from scipy.spatial.transform import Rotation as RotScipy
 
 from magpylib._src.defaults.defaults_classes import default_settings
@@ -17,6 +19,7 @@ from magpylib._src.defaults.defaults_utility import linearize_dict
 from magpylib._src.input_checks import check_input_zoom
 from magpylib._src.style import get_style
 from magpylib._src.utility import format_obj_input
+from magpylib._src.utility import is_array_like
 from magpylib._src.utility import merge_dicts_with_conflict_check
 
 DEFAULT_ROW_COL_PARAMS = {
@@ -134,6 +137,101 @@ def get_vertices_from_model(model_kwargs, model_args=None, coordsargs=None):
     return vertices, coordsargs, useargs
 
 
+def get_orientation_from_vec(vec, ref_axis=(0, 0, 1)):
+    """
+    Compute rotation from input vector to reference axis, handling NaNs, infs,
+    or zero vectors by returning an identity rotation.
+
+    Parameters
+    ----------
+    vec : array_like of shape (n,3)
+        Input vector (3D)
+    ref_axis : array_like, optional
+        Reference axis (3D), default is (0, 0, 1)
+
+    Returns
+    -------
+    Rotation
+        Rotation object from input vector to reference axis.
+    """
+
+    # normalize reference axis
+    ref_axis = np.array(ref_axis) / np.linalg.norm(ref_axis)
+
+    # Initialize rotation vector array
+    rotvec = np.zeros_like(vec)
+
+    # Find invalid vectors (NaNs, infs) and zero vectors
+    invalid_mask = np.isnan(vec).any(axis=1) | np.isinf(vec).any(axis=1)
+    zero_vector_mask = ~invalid_mask & (np.linalg.norm(vec, axis=1) == 0)
+    valid_mask = ~(invalid_mask | zero_vector_mask)
+
+    # Normalize valid input vectors
+    vec_valid = vec[valid_mask]
+    norm_valid = np.linalg.norm(vec_valid, axis=1, keepdims=True)
+    vec_valid = vec_valid / norm_valid
+
+    # get angle and axis for valid rotvecs
+    cross_valid = np.cross(vec_valid, ref_axis)
+    cross_magnitudes = np.linalg.norm(cross_valid, axis=1)
+    mask = cross_magnitudes > 0
+    cross_valid[mask] = cross_valid[mask] / cross_magnitudes[mask][:, np.newaxis]
+    dot_valid = np.dot(vec_valid, ref_axis)
+    # Clip dot product to ensure it falls within the valid range of arccos
+    dot_valid = np.clip(dot_valid, -1.0, 1.0)
+    angle_valid = np.arccos(dot_valid)
+
+    # Compute rotation vectors for valid inputs
+    rotvec_valid = -cross_valid * angle_valid[:, np.newaxis]
+
+    # Handle the edge case where the vectors are anti-parallel
+    anti_parallel_mask = np.isclose(dot_valid, -1)
+    if np.any(anti_parallel_mask):
+        # Find an arbitrary axis orthogonal to the reference axis
+        orthogonal_axis = np.cross(ref_axis, np.array([1, 0, 0]))
+        # if ref_axis was colinear with orthogonal axis
+        if np.linalg.norm(orthogonal_axis) == 0:
+            orthogonal_axis = np.cross(ref_axis, np.array([0, 1, 0]))
+        # Apply 180 degrees rotation around the orthogonal axis
+        rotvec_valid[anti_parallel_mask] = np.pi * orthogonal_axis
+
+    rotvec[valid_mask] = rotvec_valid
+    return RotScipy.from_rotvec(rotvec)
+
+
+def draw_zarrow(
+    height=1.0,
+    diameter=0.1,
+    sign_offset=1.0,
+    sign=1,
+    pivot="middle",
+    include_line=True,
+):
+    """Provides x,y,z coordinates of an arrow drawn in the x-z-plane (y=0)
+    centered in x,y,z=(0,0,0)"""
+    shift = sign_offset - 0.5
+    hx = 0.6 * diameter
+    hz = np.sign(sign) * diameter
+    anchor = (
+        (0, -0.5, 0)
+        if pivot == "tip"
+        else (0, 0.5, 0) if pivot == "tail" else (0, 0, 0)
+    )
+    arrow = [
+        [0, 0, shift],
+        [-hx, 0, shift - hz],
+        [0, 0, shift],
+        [hx, 0, shift - hz],
+        [0, 0, shift],
+    ]
+    if include_line:
+        arrow = [[0, 0, -0.5], *arrow, [0, 0, 0.5]]
+    else:
+        arrow = [[0, 0, -0.5], [np.nan] * 3, *arrow, [np.nan] * 3, [0, 0, 0.5]]
+    arrow = (np.array(arrow) + np.array(anchor)) * height
+    return arrow
+
+
 def draw_arrowed_line(
     vec,
     pos,
@@ -235,35 +333,24 @@ def draw_arrow_on_circle(sign, diameter, arrow_size, scaled=True, angle_pos_deg=
     return vertices
 
 
-def get_rot_pos_from_path(obj, show_path=None):
-    """
-    subsets orientations and positions depending on `show_path` value.
-    examples:
-    show_path = [1,2,8], path_len = 6 -> path_indices = [1,2,6]
-    returns rots[[1,2,6]], poss[[1,2,6]]
-    """
+def path_frames_to_indices(frames, path_len):
+    """get frames indices from frames input (can be bool,int, array)"""
     # pylint: disable=protected-access
     # pylint: disable=invalid-unary-operand-type
-    if show_path is None:
-        show_path = True
-    pos = obj._position
-    orient = obj._orientation
-    path_len = pos.shape[0]
-    if show_path is True or show_path is False or show_path == 0:
+    if frames is None:
+        frames = True
+    if frames is True or frames is False or frames == 0:
         inds = np.array([-1])
-    elif isinstance(show_path, int):
-        inds = np.arange(path_len, dtype=int)[::-show_path]
-    elif hasattr(show_path, "__iter__") and not isinstance(show_path, str):
-        inds = np.array(show_path)
+    elif isinstance(frames, int):
+        inds = np.arange(path_len, dtype=int)[::-frames]
+    elif hasattr(frames, "__iter__") and not isinstance(frames, str):
+        inds = np.array(frames)
     else:  # pragma: no cover
-        raise ValueError(f"Invalid show_path value ({show_path})")
-    inds[inds >= path_len] = path_len - 1
-    inds = np.unique(inds)
+        raise ValueError(f"Invalid show_path value ({frames})")
+    inds = inds[inds < path_len]
     if inds.size == 0:
         inds = np.array([path_len - 1])
-    rots = orient[inds]
-    poss = pos[inds]
-    return rots, poss, inds
+    return inds
 
 
 def get_objects_props_by_row_col(*objs, colorsequence, style_kwargs):
@@ -381,12 +468,31 @@ def merge_scatter3d(*traces):
         traces[0]["mode"] = "markers"
     no_gap = "line" not in mode
 
-    merged_trace = {}
-    for k in "xyz":
+    ffill = "--<forward_fill>--"
+
+    def fill_trace(tr, fill_value):
+        if fill_value == ffill:
+            return [*tr[k], *tr[k][-1:]]
+        return [*tr[k], fill_value]
+
+    fill_vals = {
+        "x": np.nan,
+        "y": np.nan,
+        "z": np.nan,
+        "marker_symbol": ffill,
+        "marker_size": 0,
+        "marker_color": ffill,
+        "line_color": ffill,
+    }
+    fill_vals = {
+        k: v for k, v in fill_vals.items() if is_array_like(traces[0].get(k, None))
+    }
+    merged_trace = {**traces[0]}
+    for k, fill_val in fill_vals.items():
         if no_gap:
-            stack = [b[k] for b in traces]
+            stack = [tr[k] for tr in traces]
         else:
-            stack = [pts for b in traces for pts in [[None], b[k]]]
+            stack = [fill_trace(tr, fill_val) for tr in traces]
         merged_trace[k] = np.hstack(stack)
     for k, v in traces[0].items():
         if k not in merged_trace:
@@ -582,7 +688,7 @@ def group_traces(*traces):
     mesh_groups = {}
     common_keys = ["legendgroup", "opacity", "row", "col", "color"]
     spec_keys = {
-        "mesh3d": ["colorscale", "color", "facecolor"],
+        "mesh3d": ["colorscale", "facecolor"],
         "scatter3d": [
             "marker",
             "line_dash",
@@ -595,22 +701,17 @@ def group_traces(*traces):
         ],
     }
     for tr in traces:
-        tr = linearize_dict(
-            tr,
-            separator="_",
-        )
-        gr = [tr["type"]]
-        for k in [*common_keys, *spec_keys.get(tr["type"], [])]:
-            if k == "facecolor":
-                v = tr.get(k, None) is None
-            else:
-                v = tr.get(k, "")
+        tr = linearize_dict(tr, separator="_")
+        tr_typ = tr["type"]
+        gr = [tr_typ]
+        for k in [*common_keys, *spec_keys.get(tr_typ, [])]:
+            v = tr.get(k, None)
+            # colorscales cannot merged in mesh3d (yet)
+            if k != "colorscale" and is_array_like(v):
+                v = "array"
             gr.append(str(v))
-        gr = "".join(gr)
-        if gr not in mesh_groups:
-            mesh_groups[gr] = []
-        mesh_groups[gr].append(tr)
-
+        gr = hash(tuple(gr))
+        mesh_groups.setdefault(gr, []).append(tr)
     traces = []
     for group in mesh_groups.values():
         traces.extend(merge_traces(*group))
@@ -809,3 +910,82 @@ def create_null_dim_trace(color=None, **kwargs):
     if color is not None:
         trace["marker_color"] = color
     return {**trace, **kwargs}
+
+
+def get_hexcolors_from_scale(
+    values,
+    colorscale,
+    cmin=None,
+    cmax=None,
+    nan_color="#b2beb5",
+):
+    """Convert numerical values to hexadecimal colors based on a color scale.
+    Invalid value in the array a converted to the specified `nan_color`."""
+    values = np.array(values)
+    nan_mask = np.isnan(values)
+    valid = values[~nan_mask]
+    cmin = np.min(valid) if cmin is None else cmin
+    cmax = np.max(valid) if cmax is None else cmax
+    ptp = cmax - cmin
+    values = (values - cmin) / ptp if ptp != 0 else values * 0 + 0.5
+    rgb_colors = sample_colorscale(colorscale, values[~nan_mask], colortype=None)
+    hex_colors = [rgb2hex(rgb) for rgb in rgb_colors]
+    out = np.array([""] * len(values), dtype="<U10")
+    out[nan_mask] = nan_color
+    out[~nan_mask] = hex_colors
+    return out
+
+
+def split_input_arrays(*input_arrays, ordered=True):
+    """splits input_arrays into chunks of same values.
+    Use case: Unlike plotly, matplotlib and pyvista cannot display line plots with an array of
+    colors.
+    The argument order=True is necessary for line arrays wher the order is important.
+    For markers, the order is not important and unique combinations with their respective
+    indices are returned.
+    """
+    max_length = max(len(inp) if is_array_like(inp) else 0 for inp in input_arrays)
+    if max_length == 0:
+        return [(tuple(input_arrays), slice(None))]
+    input_arrays = [
+        [inp] * max_length if not is_array_like(inp) else inp for inp in input_arrays
+    ]
+    input_array = list(zip(*input_arrays))
+    if ordered:
+        input_split = []
+        prev_inp = next(iter(input_array))
+        prev_ind = 0
+        for ind, inp in enumerate(input_array):
+            val, prev_val = tuple(inp), tuple(prev_inp)
+            is_end = ind == len(input_array) - 1
+            if val != prev_val or is_end:
+                last_ind = ind if ind != 0 else None
+                input_split.append((prev_inp, slice(prev_ind, last_ind)))
+                prev_ind = ind
+                prev_inp = inp
+        return input_split
+
+    input_split = {}
+    for ind, inp in enumerate(input_array):
+        val = tuple(inp)
+        input_split.setdefault(val, []).append(ind)
+    return list(input_split.items())
+
+
+def get_trace_kw(trace, arg, *, none_replace=None):
+    """Return the trace value from key while accepting magic notation
+    examples for: trace = {"marker_size": [3], "line": {"color": "blue"}}
+    get_kw(trace, "marker_size") -> array([3])
+    get_kw(trace, "line_color") -> "blue"
+    get_kw(trace, "line_dash") -> None
+    get_kw(trace, "line_width", none_replace=3) -> 3 # not found is like None
+    """
+    pref, *param = arg.split("_")
+    parent = trace.get(pref, {})
+    res = trace.get(arg, None)
+    if param:
+        res = parent.get("".join(param), trace.get(arg, None))
+    res = np.array(res) if is_array_like(res) else res
+    if res is None:
+        return none_replace
+    return res

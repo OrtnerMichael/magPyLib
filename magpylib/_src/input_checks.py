@@ -30,7 +30,7 @@ def all_same(lst: list) -> bool:
     return lst[1:] == lst[:-1]
 
 
-def is_array_like(inp, msg: str):
+def check_array_like(inp, msg: str):
     """test if inp is array_like: type list, tuple or ndarray
     inp: test object
     msg: str, error msg
@@ -327,7 +327,7 @@ def check_format_input_vector(
         if inp is None:
             return None
 
-    is_array_like(
+    check_array_like(
         inp,
         f"Input parameter `{sig_name}` must be {sig_type}.\n"
         f"Instead received type {type(inp)!r}.",
@@ -367,7 +367,7 @@ def check_format_input_vector2(
     - convert inp to ndarray with dtype float
     - make sure that inp.ndim = target_ndim, None dimensions are ignored
     """
-    is_array_like(
+    check_array_like(
         inp,
         f"Input parameter `{param_name}` must be array_like.\n"
         f"Instead received type {type(inp)!r}.",

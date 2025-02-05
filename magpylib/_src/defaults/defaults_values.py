@@ -94,7 +94,15 @@ DEFAULTS = {
                     "size": 1,
                     "sizemode": "scaled",
                     "color": None,
-                    "symbol": "o",
+                    "symbol": None,
+                    "field": {
+                        "symbol": "cone",
+                        "vectorsource": None,
+                        "colorsource": None,
+                        "colorscale": "Viridis",
+                        "shownull": True,
+                        "sizemode": "constant",
+                    },
                 },
                 "arrows": {
                     "x": {"color": "red"},

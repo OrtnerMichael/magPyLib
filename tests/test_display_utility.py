@@ -8,6 +8,7 @@ import pyvista
 
 import magpylib as magpy
 from magpylib._src.display.traces_utility import draw_arrow_from_vertices
+from magpylib._src.display.traces_utility import get_orientation_from_vec
 from magpylib._src.display.traces_utility import merge_scatter3d
 from magpylib._src.exceptions import MagpylibBadUserInput
 
@@ -101,3 +102,28 @@ def test_merge_scatter3d():
 
     merge_scatter3d(*get_traces(1))
     merge_scatter3d(*get_traces(3))
+
+
+def test_get_orientation_from_vec():
+    """test get_orientation_from_vec"""
+    # should return ref axis non null vectors and invalid inputs
+    # antiparallel to the ref_axis should return valid 180 rotation
+    ref_axis = (0, 0, 1)
+    vec = np.array(
+        [
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 0, 1],
+            [np.nan, 0, 0],
+            [0, 0, 0],
+            [0, 0, -1],
+            [1, 2, 3],
+            [4, 5, 6],
+        ]
+    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        vec = (vec.T / np.linalg.norm(vec, axis=1)).T
+    hasnan = np.isnan(vec).any(axis=1)
+    orient = get_orientation_from_vec(vec, ref_axis=ref_axis)
+    vec[hasnan] = ref_axis
+    np.testing.assert_allclose(vec, orient.apply(ref_axis), atol=1e-8)

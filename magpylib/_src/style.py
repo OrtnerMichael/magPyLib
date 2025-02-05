@@ -1647,6 +1647,151 @@ class SensorStyle(BaseStyle, SensorProperties):
         super().__init__(**kwargs)
 
 
+class PixelField(MagicProperties):
+    """Defines the styling properties of sensor pixels.
+
+    Parameters
+    ----------
+    vectorsource: str, default=None
+        The pixel orientation vector source (one of "B", "H", "M", "J")
+
+    colorsource: str, default=None
+        The pixel color source (e.g. "Bx", "Hxy", "J", etc.). If not specfied,
+        the amplitude of the `vectorsource` value is used.
+
+    colorscale: str, default="Inferno",
+        The colorscale used with `colorsource`.
+
+    shownull: bool, default=True
+        Show/hide null or invalid field values
+
+    symbol: {"cone", "arrow", "arrow3d"}:
+        Orientation symbol for field vector.
+
+    sizemode: {"constant", "linear", "log"}
+        Symbol size mode releative the the field magnitude.
+    """
+
+    _allowed_vectorsources = ("B", "H", "J", "M")
+    _allowed_symbols = ("cone", "arrow", "arrow3d")
+    _allowed_sizemodes = ("constant", "linear", "log")
+    _allowed_colorscales = [
+        "Viridis",
+        "Plasma",
+        "Inferno",
+        "Magma",
+        "Cividis",
+        "Greys",
+        "Purples",
+        "Blues",
+        "Greens",
+        "Oranges",
+        "Reds",
+        "YlOrBr",
+        "YlOrRd",
+        "OrRd",
+        "PuRd",
+        "RdPu",
+        "BuPu",
+        "GnBu",
+        "PuBu",
+        "YlGnBu",
+        "PuBuGn",
+        "BuGn",
+        "YlGn",
+    ]
+
+    @property
+    def vectorsource(self):
+        """Pixel vector source."""
+        return self._vectorsource
+
+    @vectorsource.setter
+    def vectorsource(self, val):
+        assert val is None or val in self._allowed_vectorsources, (
+            f"The `vectorsource` property of {type(self).__name__} must be one of"
+            f"{self._allowed_vectorsources},\n"
+            f"but received {repr(val)} instead."
+        )
+        self._vectorsource = val
+
+    @property
+    def colorsource(self):
+        """Pixel vector source."""
+        return self._colorsource
+
+    @colorsource.setter
+    def colorsource(self, val):
+        valid = True
+        if val not in (None, False):
+            field_str, *coords_str = val
+            if not coords_str:
+                coords_str = list("xyz")
+            if field_str not in "BHMJ" and set(coords_str).difference(set("xyz")):
+                valid = False
+        assert valid, (
+            f"The `colorsource` property of {type(self).__name__} must be None or False or start"
+            f" with either {self._allowed_vectorsources} and be followed by a combination of"
+            f" 'x', 'y', 'z' (e.g. 'Bxy' or ('Bxy', 'Bz') ) but received {repr(val)} instead."
+        )
+        self._colorsource = val
+
+    @property
+    def colorscale(self):
+        """Pixel vector source."""
+        return self._colorscale
+
+    @colorscale.setter
+    def colorscale(self, val):
+        assert val is None or val in self._allowed_colorscales, (
+            f"The `colorscale` property of {type(self).__name__} must be one of"
+            f"{self._allowed_colorscales},\n"
+            f"but received {repr(val)} instead."
+        )
+        self._colorscale = val
+
+    @property
+    def shownull(self):
+        """Show/hide null or invalid field values"""
+        return self._shownull
+
+    @shownull.setter
+    def shownull(self, val):
+        assert val is None or isinstance(val, bool), (
+            f"The `shownull` property of {type(self).__name__} must be either True or False,"
+            f"but received {repr(val)} instead."
+        )
+        self._shownull = val
+
+    @property
+    def symbol(self):
+        """Pixel symbol. Can be one of `{"cone", "arrow", "arrow3d"}`."""
+        return self._symbol
+
+    @symbol.setter
+    def symbol(self, val):
+        assert val is None or val in self._allowed_symbols, (
+            f"The `symbol` property of {type(self).__name__} must be one of"
+            f"{self._allowed_symbols},\n"
+            f"but received {repr(val)} instead."
+        )
+        self._symbol = val
+
+    @property
+    def sizemode(self):
+        """Pixel sizemode. Can be one of `{"constant", "linear", "log"}`."""
+        return self._sizemode
+
+    @sizemode.setter
+    def sizemode(self, val):
+        assert val is None or val in self._allowed_sizemodes, (
+            f"The `sizemode` property of {type(self).__name__} must be one of"
+            f"{self._allowed_sizemodes},\n"
+            f"but received {repr(val)} instead."
+        )
+        self._sizemode = val
+
+
 class Pixel(MagicProperties):
     """Defines the styling properties of sensor pixels.
 
@@ -1728,6 +1873,15 @@ class Pixel(MagicProperties):
             f"but received {repr(val)} instead."
         )
         self._symbol = val
+
+    @property
+    def field(self):
+        """`PixelField` object or dict."""
+        return self._field
+
+    @field.setter
+    def field(self, val):
+        self._field = validate_property_class(val, "pixel", PixelField, self)
 
 
 class CurrentProperties:

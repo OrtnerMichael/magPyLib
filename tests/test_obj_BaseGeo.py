@@ -542,7 +542,7 @@ def test_describe_with_exclude_None():
     # print("test = [\n    " + '",\n    '.join(f'"{s}' for s in desc.split("\n")) + '",\n]')
     x = magpy.Sensor()
     test = [
-        "Sensor(id=1687262758416)",
+        "Sensor(id=140534160166976)",
         "  • parent: None",
         "  • position: [0. 0. 0.] m",
         "  • orientation: [0. 0. 0.] deg",
@@ -555,8 +555,9 @@ def test_describe_with_exclude_None():
             " legend=Legend(show=None, text=None), model3d=Model3d(data=[], showdefault=True),"
             " opacity=None, path=Path(frames=None, line=Line(color=None, style=None, width=None),"
             " marker=Marker(color=None, size=None, symbol=None), numbering=None, show=None),"
-            " pixel=Pixel(color=None, size=1, sizemode=None, symbol=None), size=None,"
-            " sizemode=None)"
+            " pixel=Pixel(color=None, field=PixelField(colorscale=None, colorsource=None,"
+            " shownull=None, sizemode=None, symbol=None, vectorsource=None), size=1,"
+            " sizemode=None, symbol=None), size=None, sizemode=None)"
         ),
     ]
     match_string_up_to_id(test, x.describe(exclude=None, return_string=True))

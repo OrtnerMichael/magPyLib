@@ -497,16 +497,26 @@ def merge_dicts_with_conflict_check(objs, *, target, identifiers, unique_fields)
 
 
 @contextmanager
-def style_temp_edit(obj, style_temp, copy=True):
+def style_temp_edit(*objs, styles_temp=None):
     """Temporary replace style to allow edits before returning to original state"""
     # pylint: disable=protected-access
-    orig_style = getattr(obj, "_style", None)
+    styles_temp = {} if styles_temp is None else styles_temp
+    orig_styles = {}
     try:
-        # temporary replace style attribute
-        obj._style = style_temp
-        if style_temp and copy:
-            # deepcopy style only if obj is in multiple subplots.
-            obj._style = style_temp.copy()
+        for obj in objs:
+            style_temp = styles_temp.get(obj, None)
+            orig_styles[obj] = getattr(obj, "_style", None)
+            # temporary save original style
+            if orig_styles[obj] is not None:
+                orig_styles[obj] = obj._style.copy()
+            if style_temp is not None:
+                obj._style = style_temp
         yield
     finally:
-        obj._style = orig_style
+        for obj in objs:
+            obj._style = orig_styles[obj]
+
+
+def is_array_like(inp):
+    """Return boolean on wether input is an array, list or tuple"""
+    return isinstance(inp, (list, tuple, np.ndarray))

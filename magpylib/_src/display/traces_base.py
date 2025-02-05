@@ -7,6 +7,7 @@ from functools import partial
 import numpy as np
 from scipy.spatial import ConvexHull  # pylint: disable=no-name-in-module
 
+from magpylib._src.display.traces_utility import draw_zarrow
 from magpylib._src.display.traces_utility import merge_mesh3d
 from magpylib._src.display.traces_utility import place_and_orient_model3d
 from magpylib._src.fields.field_BH_tetrahedron import check_chirality
@@ -43,7 +44,7 @@ def get_model(trace, *, backend, show, scale, kwargs):
         )
     model["kwargs"].update(kwargs)
     if backend == "plotly-dict":
-        model = {"type": "mesh3d", **model["kwargs"]}
+        model = model["kwargs"]
     else:
         model["backend"] = backend
         model["kwargs"].pop("type", None)
@@ -96,6 +97,7 @@ def make_Cuboid(
     """
     dimension = np.array(dimension, dtype=float)
     trace = {
+        "type": "mesh3d",
         "i": np.array([7, 0, 0, 0, 4, 4, 2, 6, 4, 0, 3, 7]),
         "j": np.array([0, 7, 1, 2, 6, 7, 1, 2, 5, 5, 2, 2]),
         "k": np.array([3, 4, 2, 3, 5, 6, 5, 5, 0, 1, 7, 6]),
@@ -193,7 +195,7 @@ def make_Prism(
     k = np.concatenate([k1, j2, j3, k4])
 
     x, y, z = c.T
-    trace = {"x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
+    trace = {"type": "mesh3d", "x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
 
@@ -283,7 +285,7 @@ def make_Ellipsoid(
     j = np.concatenate([j1, j2, j3, j4])
     k = np.concatenate([k1, k2, k3, k4])
 
-    trace = {"x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
+    trace = {"type": "mesh3d", "x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
 
@@ -383,7 +385,7 @@ def make_CylinderSegment(
         k.extend([j5, j5 + N - 1])
     i, j, k = (np.hstack(l) for l in (i, j, k))
 
-    trace = {"x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
+    trace = {"type": "mesh3d", "x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
 
@@ -464,7 +466,7 @@ def make_Pyramid(
     j = i + 1
     j[-1] = 0
     k = np.array([N] * N, dtype=int)
-    trace = {"x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
+    trace = {"type": "mesh3d", "x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
 
@@ -535,21 +537,26 @@ def make_Arrow(
         "middle": 0,
     }
     z = validate_pivot(pivot, pivot_conditions)
-    cone = make_Pyramid(
-        backend="plotly-dict",
-        base=base,
-        diameter=d,
-        height=d,
-        position=(0, 0, z + h / 2 - d / 2),
-    )
-    prism = make_Prism(
-        backend="plotly-dict",
-        base=base,
-        diameter=d / 2,
-        height=h - d,
-        position=(0, 0, z + -d / 2),
-    )
-    trace = merge_mesh3d(cone, prism)
+    ttype = kwargs.pop("type", "mesh3d")
+    if ttype == "mesh3d":
+        cone = make_Pyramid(
+            backend="plotly-dict",
+            base=base,
+            diameter=d,
+            height=d,
+            position=(0, 0, z + h / 2 - d / 2),
+        )
+        prism = make_Prism(
+            backend="plotly-dict",
+            base=base,
+            diameter=d / 2,
+            height=h - d,
+            position=(0, 0, z + -d / 2),
+        )
+        trace = merge_mesh3d(cone, prism)
+    else:
+        x, y, z = draw_zarrow(height=h, diameter=diameter, pivot=pivot).T
+        trace = {"type": "scatter3d", "x": x, "y": y, "z": z, "mode": "lines"}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
 
@@ -602,7 +609,7 @@ def make_Tetrahedron(
     # create triangles implying right vertices chirality
     triangles = np.array([[0, 2, 1], [0, 3, 2], [1, 3, 0], [1, 2, 3]])
     points = check_chirality(np.array([vertices]))[0]
-    trace = dict(zip("xyzijk", [*points.T, *triangles.T]))
+    trace = {"type": "mesh3d", **dict(zip("xyzijk", [*points.T, *triangles.T]))}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
 
@@ -664,6 +671,6 @@ def make_TriangularMesh(
         hull = ConvexHull(vertices)
         faces = hull.simplices
     i, j, k = np.array(faces).T
-    trace = {"x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
+    trace = {"type": "mesh3d", "x": x, "y": y, "z": z, "i": i, "j": j, "k": k}
     trace = place_and_orient_model3d(trace, orientation=orientation, position=position)
     return get_model(trace, backend=backend, show=show, scale=scale, kwargs=kwargs)
