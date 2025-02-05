@@ -77,7 +77,45 @@ Keep in mind that there are still many reasons why your simulation might not fit
     - Worst-case: the polarization can be inhomogeneous which is often a problem in injection-mold magnets.
 
 ## Example
+For a concrete example, let's consider the case of a simple linear movement of the sensor under a magnet. Two cylinder magnets with axial magnetic polarization but different L/D ratios were chosen: one magnet has 20 mm height and 5 mm diameter (L/D = 4) while the other presents 2 mm height and 8 mm diameter (L/D = 0.25). The magnets are placed such that the magnetization points towards the Z-axis, and the Bz component is measured. The magnets are sintered NdFeB of BMN-35 grade, kindly provided by Bomatec (https://www.bomatec.com/en). According to the datasheet, the nominal remanence of such magnets is 1.22 T at 20 °C. But if this value is used in the magnetic polarization attribute when creating your cylinder magnet in Magpylib, you will see that the simulated field is higher than the measurement. Fortunately, Bomatec also provides well written datasheets from which one can estimate the actual value to be used due to magnet geometry:
 
+![data sheet example](../../../_static/images/examples_tutorial_magnet_datasheet3.png)
+
+![comparison LD025](../../../_static/images/examples_tutorial_magnet_magnetpicture.png)
+
+### Magpylib simulation code
+The code for a linear scan of the sensor under the magnet, keeping an air gap of 12 mm, is the following:
+```python
+import numpy as np
+import magpylib as magpy
+
+magnet = magpy.magnet.Cylinder(dimensions=(5e-3, 20e-3), polarization=(0, 0, 1.22))
+sensor = magpy.Sensor(position=(0, 0, -15e-3)) # 22 mm from center of magnet, 5 mm airgap
+
+x = np.linspace(-15, 15, 61)*1e-3 # moving from X = -15 mm to X = +15 mm
+move = [(xi, 0, 0) for xi in x]
+sensor.move(displacement=move, start=0)
+
+field = sensor.getB(magnet)
+```
+In which the cylinder magnet with L/D = 4 is considered. Keep in mind that we are using Magpylib version>5, with SI units. For the magnet with L/D = 0.25, cylinder dimensions have to be modified.
+
+### Experimental data and comparison
+To obtain the experimental data, a 6-degrees of freedom testbench was used, in which we can place any magnet and magnetic sensor of choice. With independent rotation and linear movement stages, it is possible to control the air gap and sensor movement.
+
+![comparison LD025](../../../_static/images/examples_tutorial_magnet_testbench.png)
+
+The following figure presents the comparison for the Z-component of the magnetic field for a magnet with L/D = 4. The curves show simulation when using the nominal remanence, the remanence corrected from the B-H curve and the fitted remanence value obtained using the experimental data. Due to tolerances in airgap control and die position inside the sensor packaging, the filled area represents sensor displacement of +/- 50 µm.
+![comparison LD4](../../../_static/images/examples_tutorial_magnet_LD4_comp.png)
+Whereas the nominal remanence is of 1.22 T and the corrected value estimated from the datasheet is 1.21 T, an optimization procedure using the experimental data resulted in 1.1847 T. This value is the closest one to what is obtained when performing the characterization of the magnet with a set of coils, which resulted in 1.17 T. This is also an indication that a tolerance of +/- 50 µm is a realistic value in our testbench.
+
+The same comparison is made for a magnet with L/D = 0.25, for which greater differences are expected.
+![comparison LD025](../../../_static/images/examples_tutorial_magnet_LD025_comp.png)
+In this case, from the B-H one can estimate a remanence of 1.18 T, and the fitting with the experimental data yields 1.1254 T remanence. Again, this value is the closest one to what is obtained with magnetic characterization, which resulted in 1.11 T remanence.
+
+Surely, there are other aspects that will influence your magnetic readings that were not mentioned here, such as sensor offset, sensitivity, and higher order components of the magnetic field that are not taken into account in the analytical expressions solved by Magpylib. But understanding from the start that the geometry of the magnet itself affects its magnetic polarization value, and how to infer the corrected value from a well written datasheet, is an important step towards a better alignment between your simulations and the experimental data.
+
+If possible, the best practice is to characterize the magnet being used. As briefly mentioned, it is also possible to run optimization algorithms to better understand your experiment, but make sure to set realistic boundaries for the fitting parameters and double-check if the results make sense physically.
 ::::{grid} 2
 :::{grid-item}
 :columns: 3
@@ -92,6 +130,9 @@ coming soon:
 1. Magpylib simulation code
 2. Experimental data
 3. Comparison and discussion
+
+
+###
 
 **Exterior reference**
 G. Martinek, S. Ruoho and U. Wyss. (2021). *Magnetic Properties of Permanents Magnets & Measuring Techniques* [White paper]. Arnold Magnetic Technologies. https://www.arnoldmagnetics.com/blog/measuring-permanent-magnets-white-paper/
